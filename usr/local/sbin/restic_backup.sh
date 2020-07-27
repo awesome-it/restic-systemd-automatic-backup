@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # Make backup my system with restic to Backblaze B2.
-# This script is typically run by: /etc/systemd/system/restic-backup.{service,timer}
+# This script is a modified version of:
+# https://github.com/erikw/restic-systemd-automatic-backup/
 
 # Exit on failure, pipe failure
 set -e -o pipefail
+
+restic_bin="ionice -c2 nice -n19 /usr/local/sbin/restic"
 
 # Clean up lock if we are killed.
 # If killed by systemd, like $(systemctl stop restic), then it kills the whole cgroup and all it's subprocesses.
@@ -11,20 +14,25 @@ set -e -o pipefail
 exit_hook() {
 	echo "In exit_hook(), being killed" >&2
 	jobs -p | xargs kill
-	restic unlock
+	$restic_bin unlock
 }
 trap exit_hook INT TERM
 
-# How many backups to keep.
-RETENTION_DAYS=14
-RETENTION_WEEKS=16
-RETENTION_MONTHS=18
-RETENTION_YEARS=3
+# Set all environment variables like
+# B2_ACCOUNT_ID, B2_ACCOUNT_KEY, RESTIC_REPOSITORY etc.
+source /etc/restic/restic_env.sh
 
-# What to backup, and what to not
-BACKUP_PATHS="/ /boot /home"
-[ -d /mnt/media ] && BACKUP_PATHS+=" /mnt/media"
-BACKUP_EXCLUDES="--exclude-file /etc/restic/backup_exclude"
+# Check if every necessary envvar is set before continuing
+envvars=( BACKUP_PATHS BACKUP_EXCLUDES RETENTION_DAYS RETENTION_WEEKS RETENTION_MONTHS RETENTION_YEARS )
+for envvar in "${envvars[@]}"
+do
+    if [ -z "${!envvar}" ]; then
+        echo "Environment variable ${envvar} missing"
+        exit 1
+    fi
+done
+
+# Check for backup_excludes in homedirs
 for dir in /home/*
 do
 	if [ -f "$dir/.backup_exclude" ]
@@ -33,12 +41,7 @@ do
 	fi
 done
 
-BACKUP_TAG=systemd.timer
-
-
-# Set all environment variables like
-# B2_ACCOUNT_ID, B2_ACCOUNT_KEY, RESTIC_REPOSITORY etc.
-source /etc/restic/b2_env.sh
+BACKUP_TAG=auto-backup
 
 # How many network connections to set up to B2. Default is 5.
 B2_CONNECTIONS=50
@@ -49,27 +52,47 @@ B2_CONNECTIONS=50
 # Reference: https://unix.stackexchange.com/questions/146756/forward-sigterm-to-child-in-bash
 
 # Remove locks from other stale processes to keep the automated backup running.
-restic unlock &
+$restic_bin unlock &
 wait $!
 
 # Do the backup!
 # See restic-backup(1) or http://restic.readthedocs.io/en/latest/040_backup.html
 # --one-file-system makes sure we only backup exactly those mounted file systems specified in $BACKUP_PATHS, and thus not directories like /dev, /sys etc.
 # --tag lets us reference these backups later when doing restic-forget.
-restic backup \
-	--verbose \
+restic_tmp_out=$(mktemp /tmp/restic-backup.XXXXXX)
+
+$restic_bin backup \
+	--json \
 	--one-file-system \
 	--tag $BACKUP_TAG \
 	--option b2.connections=$B2_CONNECTIONS \
+    --exclude-caches \
 	$BACKUP_EXCLUDES \
-	$BACKUP_PATHS &
+	$BACKUP_PATHS > $restic_tmp_out &
 wait $!
+
+# collect summary stats for promtheus node exporter
+cat $restic_tmp_out | jq -r '. | select(.message_type == "summary") | "restic_stats_last_snapshot_duration \(.total_duration)\nrestic_stats_last_last_snapshot_bytes_processed \(.total_bytes_processed)\nrestic_stats_last_snapshot_files_processed \(.total_files_processed)"' > /var/lib/prometheus/textfile_collector/restic-last-snapshot.prom.$$
+mv /var/lib/prometheus/textfile_collector/restic-last-snapshot.prom.$$ /var/lib/prometheus/textfile_collector/restic-last-snapshot.prom
+rm -f $restic_tmp_out
+
+# collect additional stats for prometheus node exporter
+$restic_bin stats --json latest | jq -r '"restic_stats_last_snapshot_total_size_bytes \(.total_size)\nrestic_stats_last_snapshot_file_count \(.total_file_count)"' > /var/lib/prometheus/textfile_collector/restic-stats-latest-snapshot.prom.$$
+mv /var/lib/prometheus/textfile_collector/restic-stats-latest-snapshot.prom.$$ /var/lib/prometheus/textfile_collector/restic-stats-latest-snapshot.prom
+
+$restic_bin stats --mode raw-data --json | jq -r '"restic_stats_total_size_bytes \(.total_size)"' > /var/lib/prometheus/textfile_collector/restic-stats-total.prom.$$
+mv /var/lib/prometheus/textfile_collector/restic-stats-total.prom.$$ /var/lib/prometheus/textfile_collector/restic-stats-total.prom
+
+$restic_bin snapshots --json latest | jq -r '.[].time | split(".")[0] | strptime("%Y-%m-%dT%H:%M:%S") | mktime | "restic_stats_last_snapshot_timestamp \(.)"' > /var/lib/prometheus/textfile_collector/restic-stats-latest-snapshot-timestamp.prom.$$
+mv /var/lib/prometheus/textfile_collector/restic-stats-latest-snapshot-timestamp.prom.$$ /var/lib/prometheus/textfile_collector/restic-stats-latest-snapshot-timestamp.prom
+
+du -s /root/.cache/restic | awk '{ printf "restic_stats_cache_total_size_bytes %d\n",$1 }' > /var/lib/prometheus/textfile_collector/restic-stats-cache.prom.$$
+mv /var/lib/prometheus/textfile_collector/restic-stats-cache.prom.$$ /var/lib/prometheus/textfile_collector/restic-stats-cache.prom
 
 # Dereference and delete/prune old backups.
 # See restic-forget(1) or http://restic.readthedocs.io/en/latest/060_forget.html
 # --group-by only the tag and path, and not by hostname. This is because I create a B2 Bucket per host, and if this hostname accidentially change some time, there would now be multiple backup sets.
-restic forget \
-	--verbose \
+$restic_bin forget \
 	--tag $BACKUP_TAG \
 	--option b2.connections=$B2_CONNECTIONS \
         --prune \
