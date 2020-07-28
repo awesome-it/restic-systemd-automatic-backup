@@ -6,7 +6,7 @@
 # Exit on failure, pipe failure
 set -e -o pipefail
 
-restic_bin="ionice -c2 nice -n19 /usr/local/sbin/restic"
+restic_bin="$(which ionice) -c2 nice -n19 $(which restic)"
 
 # Clean up lock if we are killed.
 # If killed by systemd, like $(systemctl stop restic), then it kills the whole cgroup and all it's subprocesses.
@@ -72,22 +72,28 @@ $restic_bin backup \
 wait $!
 
 # collect summary stats for promtheus node exporter
-cat $restic_tmp_out | jq -r '. | select(.message_type == "summary") | "restic_stats_last_snapshot_duration \(.total_duration)\nrestic_stats_last_last_snapshot_bytes_processed \(.total_bytes_processed)\nrestic_stats_last_snapshot_files_processed \(.total_files_processed)"' > /var/lib/prometheus/textfile_collector/restic-last-snapshot.prom.$$
-mv /var/lib/prometheus/textfile_collector/restic-last-snapshot.prom.$$ /var/lib/prometheus/textfile_collector/restic-last-snapshot.prom
+if [[ -n "$BACKUP_PROMETHEUS_TXT_COLLECTOR" ]] ; then
+  
+  cat $restic_tmp_out | jq -r '. | select(.message_type == "summary") | "restic_stats_last_snapshot_duration \(.total_duration)\nrestic_stats_last_last_snapshot_bytes_processed \(.total_bytes_processed)\nrestic_stats_last_snapshot_files_processed \(.total_files_processed)"' > $BACKUP_PROMETHEUS_TXT_COLLECTOR/restic-last-snapshot.prom.$$
+  mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/restic-last-snapshot.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/restic-last-snapshot.prom
+  
+  # collect additional stats for prometheus node exporter
+  $restic_bin stats --json latest | jq -r '"restic_stats_last_snapshot_total_size_bytes \(.total_size)\nrestic_stats_last_snapshot_file_count \(.total_file_count)"' > $BACKUP_PROMETHEUS_TXT_COLLECTOR/restic-stats-latest-snapshot.prom.$$
+  mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/restic-stats-latest-snapshot.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/restic-stats-latest-snapshot.prom
+  
+  $restic_bin stats --mode raw-data --json | jq -r '"restic_stats_total_size_bytes \(.total_size)"' > $BACKUP_PROMETHEUS_TXT_COLLECTOR/restic-stats-total.prom.$$
+  mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/restic-stats-total.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/restic-stats-total.prom
+  
+  $restic_bin snapshots --json latest | jq -r '.[].time | split(".")[0] | strptime("%Y-%m-%dT%H:%M:%S") | mktime | "restic_stats_last_snapshot_timestamp \(.)"' > $BACKUP_PROMETHEUS_TXT_COLLECTOR/restic-stats-latest-snapshot-timestamp.prom.$$
+  mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/restic-stats-latest-snapshot-timestamp.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/restic-stats-latest-snapshot-timestamp.prom
+  
+  du -s /root/.cache/restic | awk '{ printf "restic_stats_cache_total_size_bytes %d\n",$1 }' > $BACKUP_PROMETHEUS_TXT_COLLECTOR/restic-stats-cache.prom.$$
+  mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/restic-stats-cache.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/restic-stats-cache.prom
+  
+fi
+
+# clean up
 rm -f $restic_tmp_out
-
-# collect additional stats for prometheus node exporter
-$restic_bin stats --json latest | jq -r '"restic_stats_last_snapshot_total_size_bytes \(.total_size)\nrestic_stats_last_snapshot_file_count \(.total_file_count)"' > /var/lib/prometheus/textfile_collector/restic-stats-latest-snapshot.prom.$$
-mv /var/lib/prometheus/textfile_collector/restic-stats-latest-snapshot.prom.$$ /var/lib/prometheus/textfile_collector/restic-stats-latest-snapshot.prom
-
-$restic_bin stats --mode raw-data --json | jq -r '"restic_stats_total_size_bytes \(.total_size)"' > /var/lib/prometheus/textfile_collector/restic-stats-total.prom.$$
-mv /var/lib/prometheus/textfile_collector/restic-stats-total.prom.$$ /var/lib/prometheus/textfile_collector/restic-stats-total.prom
-
-$restic_bin snapshots --json latest | jq -r '.[].time | split(".")[0] | strptime("%Y-%m-%dT%H:%M:%S") | mktime | "restic_stats_last_snapshot_timestamp \(.)"' > /var/lib/prometheus/textfile_collector/restic-stats-latest-snapshot-timestamp.prom.$$
-mv /var/lib/prometheus/textfile_collector/restic-stats-latest-snapshot-timestamp.prom.$$ /var/lib/prometheus/textfile_collector/restic-stats-latest-snapshot-timestamp.prom
-
-du -s /root/.cache/restic | awk '{ printf "restic_stats_cache_total_size_bytes %d\n",$1 }' > /var/lib/prometheus/textfile_collector/restic-stats-cache.prom.$$
-mv /var/lib/prometheus/textfile_collector/restic-stats-cache.prom.$$ /var/lib/prometheus/textfile_collector/restic-stats-cache.prom
 
 # Dereference and delete/prune old backups.
 # See restic-forget(1) or http://restic.readthedocs.io/en/latest/060_forget.html

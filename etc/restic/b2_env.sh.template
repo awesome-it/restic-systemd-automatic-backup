@@ -6,3 +6,16 @@ export RESTIC_REPOSITORY="b2:<b2-repo-name>"
 export RESTIC_PASSWORD_FILE="/etc/restic/b2_pw.txt"
 export B2_ACCOUNT_ID="<b2-account-id>"
 export B2_ACCOUNT_KEY="<b2-account-key>"
+
+# Retention Times
+export RETENTION_DAYS=14
+export RETENTION_WEEKS=16
+export RETENTION_MONTHS=18
+export RETENTION_YEARS=3
+
+# Backup Pathes & Excludes
+export BACKUP_PATHS="/"
+export BACKUP_EXCLUDES="--exclude-file /etc/restic/backup_exclude"
+
+# Prometheus Metrics
+export BACKUP_PROMETHEUS_TXT_COLLECTOR="/var/lib/prometheus/textfile_collector"
