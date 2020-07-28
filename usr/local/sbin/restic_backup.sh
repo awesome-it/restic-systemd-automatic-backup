@@ -20,7 +20,7 @@ trap exit_hook INT TERM
 
 # Set all environment variables like
 # B2_ACCOUNT_ID, B2_ACCOUNT_KEY, RESTIC_REPOSITORY etc.
-source /etc/restic/restic_env.sh
+source /etc/restic/config
 
 # Check if every necessary envvar is set before continuing
 envvars=( BACKUP_PATHS BACKUP_EXCLUDES RETENTION_DAYS RETENTION_WEEKS RETENTION_MONTHS RETENTION_YEARS )
