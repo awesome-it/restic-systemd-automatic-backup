@@ -9,6 +9,4 @@ include:
     ref: v1.0
 
 variables:
-  DOCKERFILE: docker/Dockerfile
   DOCKER_IMAGE_NAME: restic-backup
-  GIT_SUBMODULE_STRATEGY: normal
