@@ -9,7 +9,7 @@ do
 done
 
 source /etc/restic/config
-if ! restic stats /dev/null ; then
+if ! restic stats ; then
   echo "Initialize restic ..."
   restic init
 fi
