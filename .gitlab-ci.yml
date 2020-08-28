@@ -9,4 +9,4 @@ include:
     ref: v1.0
 
 variables:
-  DOCKER_IMAGE_NAME: restic-backup
+  DOCKER_IMAGE_NAME: backup-restic
