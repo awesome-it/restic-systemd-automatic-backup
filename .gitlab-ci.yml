@@ -1,0 +1,14 @@
+include:
+
+  - project: awesome/cicd
+    file: common.yml
+    ref: v1.0
+
+  - project: awesome/cicd
+    file: docker.yml
+    ref: v1.0
+
+variables:
+  DOCKERFILE: docker/Dockerfile
+  DOCKER_IMAGE_NAME: restic-backup
+  GIT_SUBMODULE_STRATEGY: normal

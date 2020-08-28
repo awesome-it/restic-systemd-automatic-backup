@@ -127,3 +127,17 @@ If you want to run an all-classic cron job instead, do like this:
 
 * `etc/cron.d/restic`: Depending on your system's cron, put this in `/etc/cron.d/` or similar, or copy the contents to $(sudo crontab -e). The format of this file is tested under FreeBSD, and might need adaptions depending on your cron.
 * `usr/local/sbin/cron_mail`: A wrapper for running cron jobs, that sends output of the job as an email using the mail(1) command.
+
+## Docker
+We added a Dockerfile to build a Docker image including the restic binary and the wrapper scripts. To run the image and backup all files located in `/backup/data` i.e. to a B2 storage, do as follows:
+
+```shell script
+$ docker run --rm -t -i \
+  -e RESTIC_REPOSITORY="b2:bucket-name"
+  -e B2_ACCOUNT_ID="<bucket-id>"
+  -e B2_ACCOUNT_KEY="<bucket-key>"
+  -e RESTIC_PASSWORD="<encryption-pass>"
+  backup_restic
+```
+
+See `docker/restic_config.sh` for more supported environment files.
