@@ -18,8 +18,7 @@ exit_hook() {
 }
 trap exit_hook INT TERM
 
-
-source /etc/restic/restic_env.sh
+source /etc/restic/config
 
 # Check if every necessary envvar is set before continuing
 envvars=( BACKUP_PATHS BACKUP_EXCLUDES RETENTION_DAYS RETENTION_WEEKS RETENTION_MONTHS RETENTION_YEARS )
