@@ -62,7 +62,7 @@ wait $!
 restic_tmp_out=$(mktemp /tmp/restic-backup.XXXXXX)
 
 BACKUP_PARAMS="${BACKUP_PARAMS}"
-if [[ -n "$RESTIC_SKIP_ONE_FILE_SYSTEM" ]] ; then
+if [[ -z "$RESTIC_SKIP_ONE_FILE_SYSTEM" ]] ; then
   BACKUP_PARAMS="$BACKUP_PARAMS --one-file-system"
 fi
 
@@ -71,7 +71,6 @@ $restic_bin backup $BACKUP_PARAMS \
 	--tag $BACKUP_TAG \
 	--option b2.connections=$B2_CONNECTIONS \
   --exclude-caches \
-  $BACKUP_PARAMS \
 	$BACKUP_EXCLUDES \
 	$BACKUP_PATHS > $restic_tmp_out &
 wait $!
