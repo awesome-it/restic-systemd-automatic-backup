@@ -7,6 +7,3 @@ include:
   - project: awesome/cicd
     file: docker.yml
     ref: v1.0
-
-variables:
-  DOCKER_IMAGE_NAME: backup-restic
