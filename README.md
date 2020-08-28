@@ -133,7 +133,7 @@ We added a Dockerfile to build a Docker image including the restic binary and th
 
 ```shell script
 $ docker run --rm -t -i \
-  -e RESTIC_REPOSITORY="b2:bucket-name"
+  -e B2_BUCKET="bucket-name"
   -e B2_ACCOUNT_ID="<bucket-id>"
   -e B2_ACCOUNT_KEY="<bucket-key>"
   -e RESTIC_PASSWORD="<encryption-pass>"

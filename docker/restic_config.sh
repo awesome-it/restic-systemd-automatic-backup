@@ -4,6 +4,10 @@ if [[ -n "$RESTIC_PASSWORD" ]] ; then
   echo "$RESTIC_PASSWORD" > $RESTIC_PASSWORD_FILE
 fi
 
+if [[ -n "$B2_BUCKET" ]] ; then
+  export RESTIC_REPOSITORY="b2:${B2_BUCKET}"
+fi
+
 # Retention Times
 export RETENTION_DAYS="${RETENTION_DAYS:-14}"
 export RETENTION_WEEKS="${RETENTION_WEEKS:-16}"
