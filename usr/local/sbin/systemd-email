@@ -52,8 +52,8 @@ system_unit=$2
 
 sendmail -t <<ERRMAIL
 To: $recipient
-From: systemd <root@$HOSTNAME>
-Subject: [systemd-email] ${system_unit}
+From: systemd <root@$(hostname -f)>
+Subject: Error in ${system_unit} on $(hostname -f)
 Content-Transfer-Encoding: 8bit
 Content-Type: text/plain; charset=UTF-8
 
