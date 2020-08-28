@@ -8,6 +8,12 @@ do
   /bin/bash $script
 done
 
+source /etc/restic/config
+if ! restic stats /dev/null ; then
+  echo "Initialize restic ..."
+  restic init
+fi
+
 echo "Running \"restic_backup.sh\" ..."
 /usr/local/sbin/restic_backup.sh
 
