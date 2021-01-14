@@ -3,7 +3,7 @@ FROM ubuntu:bionic
 ARG RESTIC_VERSION=0.9.6
 
 RUN apt-get update && \
-    apt-get install curl mariadb-client gnupg -y && \
+    apt-get install curl mariadb-client gnupg rsync -y && \
     rm -rf /var/lib/apt/lists/*
 
 RUN curl -L https://github.com/restic/restic/releases/download/v${RESTIC_VERSION}/restic_${RESTIC_VERSION}_linux_amd64.bz2 \
