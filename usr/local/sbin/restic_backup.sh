@@ -81,30 +81,36 @@ if [[ -n "$BACKUP_PROMETHEUS_TXT_COLLECTOR" ]] ; then
   if [[ ! -d "$BACKUP_PROMETHEUS_TXT_COLLECTOR" ]] ; then
     mkdir -p "$BACKUP_PROMETHEUS_TXT_COLLECTOR"
   fi
-  
+
+  METRIC_NAME="restic_stats"
+  if [[ -n "$BACKUP_PROMETHEUS_TXT_COLLECTOR_METRIC_NAME" ]] ; then
+    METRIC_NAME="${BACKUP_PROMETHEUS_TXT_COLLECTOR_METRIC_NAME}"
+  fi
+
   PREFIX=""
   if [[ -n "$BACKUP_PROMETHEUS_TXT_COLLECTOR_PREFIX" ]] ; then
     PREFIX="${BACKUP_PROMETHEUS_TXT_COLLECTOR_PREFIX}-"
   fi
+
   LABELS=""
   if [[ -n "$BACKUP_PROMETHEUS_TXT_COLLECTOR_LABELS" ]] ; then
     LABELS="{$(echo ${BACKUP_PROMETHEUS_TXT_COLLECTOR_LABELS} | sed 's/"/\\"/g')}"
   fi
   
-  cat $restic_tmp_out | jq -r ". | select(.message_type == \"summary\") | \"restic_stats_last_snapshot_duration${LABELS} \(.total_duration)\nrestic_stats_last_last_snapshot_bytes_processed${LABELS} \(.total_bytes_processed)\nrestic_stats_last_snapshot_files_processed${LABELS} \(.total_files_processed)\"" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-last-snapshot.prom.$$
+  cat $restic_tmp_out | jq -r ". | select(.message_type == \"summary\") | \"${METRIC_NAME}_last_snapshot_duration${LABELS} \(.total_duration)\n${METRIC_NAME}_last_last_snapshot_bytes_processed${LABELS} \(.total_bytes_processed)\n${METRIC_NAME}_last_snapshot_files_processed${LABELS} \(.total_files_processed)\"" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-last-snapshot.prom.$$
   mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-last-snapshot.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-last-snapshot.prom
   
   # collect additional stats for prometheus node exporter
-  $restic_bin stats --json latest | jq -r "\"restic_stats_last_snapshot_total_size_bytes${LABELS} \(.total_size)\nrestic_stats_last_snapshot_file_count${LABELS} \(.total_file_count)\"" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-latest-snapshot.prom.$$
+  $restic_bin stats --json latest | jq -r "\"${METRIC_NAME}_last_snapshot_total_size_bytes${LABELS} \(.total_size)\n${METRIC_NAME}_last_snapshot_file_count${LABELS} \(.total_file_count)\"" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-latest-snapshot.prom.$$
   mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-latest-snapshot.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-latest-snapshot.prom
   
-  $restic_bin stats --mode raw-data --json | jq -r "\"restic_stats_total_size_bytes${LABELS} \(.total_size)\"" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-total.prom.$$
+  $restic_bin stats --mode raw-data --json | jq -r "\"${METRIC_NAME}_total_size_bytes${LABELS} \(.total_size)\"" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-total.prom.$$
   mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-total.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-total.prom
   
-  $restic_bin snapshots --json latest | jq -r ".[].time | split(\".\")[0] | strptime(\"%Y-%m-%dT%H:%M:%S\") | mktime | \"restic_stats_last_snapshot_timestamp${LABELS} \(.)\"" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-latest-snapshot-timestamp.prom.$$
+  $restic_bin snapshots --json latest | jq -r ".[].time | split(\".\")[0] | strptime(\"%Y-%m-%dT%H:%M:%S\") | mktime | \"${METRIC_NAME}_last_snapshot_timestamp${LABELS} \(.)\"" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-latest-snapshot-timestamp.prom.$$
   mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-latest-snapshot-timestamp.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-latest-snapshot-timestamp.prom
   
-  du -s /root/.cache/restic | awk "{ printf \"restic_stats_cache_total_size_bytes${LABELS} %d\n\",\$1 }" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-cache.prom.$$
+  du -s /root/.cache/restic | awk "{ printf \"${METRIC_NAME}_cache_total_size_bytes${LABELS} %d\n\",\$1 }" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-cache.prom.$$
   mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-cache.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-cache.prom
   
 fi
