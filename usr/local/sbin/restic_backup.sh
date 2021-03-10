@@ -110,7 +110,7 @@ if [[ -n "$BACKUP_PROMETHEUS_TXT_COLLECTOR" ]] ; then
   $restic_bin snapshots --json latest | jq -r ".[].time | split(\".\")[0] | strptime(\"%Y-%m-%dT%H:%M:%S\") | mktime | \"${METRIC_NAME}_last_snapshot_timestamp${LABELS} \(.)\"" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-latest-snapshot-timestamp.prom.$$
   mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-latest-snapshot-timestamp.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-latest-snapshot-timestamp.prom
   
-  du -s /root/.cache/restic | awk "{ printf \"${METRIC_NAME}_cache_total_size_bytes${LABELS} %d\n\",\$1 }" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-cache.prom.$$
+  du -s ${RESTIC_CACHE_DIR:-/root/.cache/restic} | awk "{ printf \"${METRIC_NAME}_cache_total_size_bytes${LABELS} %d\n\",\$1 }" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-cache.prom.$$
   mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-cache.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-cache.prom
   
 fi
