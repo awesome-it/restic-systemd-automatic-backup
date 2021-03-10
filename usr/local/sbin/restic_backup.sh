@@ -88,7 +88,7 @@ if [[ -n "$BACKUP_PROMETHEUS_TXT_COLLECTOR" ]] ; then
   fi
   LABELS=""
   if [[ -n "$BACKUP_PROMETHEUS_TXT_COLLECTOR_LABELS" ]] ; then
-    LABELS="{$(echo ${BACKUP_PROMETHEUS_TXT_COLLECTOR_LABELS} | sed 's/"/\\"/g')"
+    LABELS="{$(echo ${BACKUP_PROMETHEUS_TXT_COLLECTOR_LABELS} | sed 's/"/\\"/g')}"
   fi
   
   cat $restic_tmp_out | jq -r ". | select(.message_type == \"summary\") | \"restic_stats_last_snapshot_duration${LABELS} \(.total_duration)\nrestic_stats_last_last_snapshot_bytes_processed${LABELS} \(.total_bytes_processed)\nrestic_stats_last_snapshot_files_processed${LABELS} \(.total_files_processed)\"" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-last-snapshot.prom.$$
