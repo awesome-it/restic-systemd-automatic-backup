@@ -94,25 +94,35 @@ if [[ -n "$BACKUP_PROMETHEUS_TXT_COLLECTOR" ]] ; then
 
   LABELS=""
   if [[ -n "$BACKUP_PROMETHEUS_TXT_COLLECTOR_LABELS" ]] ; then
-    LABELS="{$(echo ${BACKUP_PROMETHEUS_TXT_COLLECTOR_LABELS} | sed 's/"/\\"/g')}"
+    LABELS="{${BACKUP_PROMETHEUS_TXT_COLLECTOR_LABELS}}"
   fi
-  
-  cat $restic_tmp_out | jq -r ". | select(.message_type == \"summary\") | \"${METRIC_NAME}_last_snapshot_duration${LABELS} \(.total_duration)\n${METRIC_NAME}_last_last_snapshot_bytes_processed${LABELS} \(.total_bytes_processed)\n${METRIC_NAME}_last_snapshot_files_processed${LABELS} \(.total_files_processed)\"" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-last-snapshot.prom.$$
-  mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-last-snapshot.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-last-snapshot.prom
-  
-  # collect additional stats for prometheus node exporter
-  $restic_bin stats --json latest | jq -r "\"${METRIC_NAME}_last_snapshot_total_size_bytes${LABELS} \(.total_size)\n${METRIC_NAME}_last_snapshot_file_count${LABELS} \(.total_file_count)\"" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-latest-snapshot.prom.$$
-  mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-latest-snapshot.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-latest-snapshot.prom
-  
-  $restic_bin stats --mode raw-data --json | jq -r "\"${METRIC_NAME}_total_size_bytes${LABELS} \(.total_size)\"" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-total.prom.$$
-  mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-total.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-total.prom
-  
-  $restic_bin snapshots --json latest | jq -r ".[].time | split(\".\")[0] | strptime(\"%Y-%m-%dT%H:%M:%S\") | mktime | \"${METRIC_NAME}_last_snapshot_timestamp${LABELS} \(.)\"" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-latest-snapshot-timestamp.prom.$$
-  mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-latest-snapshot-timestamp.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-latest-snapshot-timestamp.prom
-  
-  du -s ${RESTIC_CACHE_DIR:-/root/.cache/restic} | awk "{ printf \"${METRIC_NAME}_cache_total_size_bytes${LABELS} %d\n\",\$1 }" > $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-cache.prom.$$
-  mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-cache.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic-stats-cache.prom
-  
+
+  function collect_metric() {
+    NAME=$1
+    VALUE=$2
+
+    echo "${NAME} ${VALUE}" >> $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic.prom.$$
+  }
+
+  if [[ -e "$BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic.prom.$$" ]] ; then
+    rm "$BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic.prom.$$"
+  fi
+
+  collect_metric ${METRIC_NAME}_last_snapshot_duration${LABELS} $(cat $restic_tmp_out | jq -r ". | select(.message_type == \"summary\") | (.total_duration)")
+  collect_metric ${METRIC_NAME}_last_snapshot_bytes_processed${LABELS} $(cat $restic_tmp_out | jq -r ". | select(.message_type == \"summary\") | (.total_bytes_processed)")
+  collect_metric ${METRIC_NAME}_last_snapshot_files_processed${LABELS} $(cat $restic_tmp_out | jq -r ". | select(.message_type == \"summary\") | (.total_files_processed)")
+  collect_metric ${METRIC_NAME}_last_snapshot_total_size_bytes${LABELS} $($restic_bin stats --json latest | jq -r "(.total_size)")
+  collect_metric ${METRIC_NAME}_last_snapshot_file_count${LABELS} $($restic_bin stats --json latest | jq -r "(.total_file_count)")
+  collect_metric ${METRIC_NAME}_total_size_bytes${LABELS} $($restic_bin stats --mode raw-data --json | jq -r "(.total_size)")
+  collect_metric ${METRIC_NAME}_last_snapshot_timestamp${LABELS} $($restic_bin snapshots --json latest | jq -r ".[].time | split(\".\")[0] | strptime(\"%Y-%m-%dT%H:%M:%S\") | mktime | (.)")
+  collect_metric ${METRIC_NAME}_cache_total_size_bytes${LABELS} $(du -s ${RESTIC_CACHE_DIR:-/root/.cache/restic} | awk "{ printf \"%d\",\$1 }")
+
+  # Persist metrics from current backup run
+  mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/${PREFIX}restic.prom._
+
+  # Put all metrics (including the metrics from other prefixes) into a single file
+  cat $BACKUP_PROMETHEUS_TXT_COLLECTOR/*restic.prom._ > $BACKUP_PROMETHEUS_TXT_COLLECTOR/restic_all.prom.$$
+  mv $BACKUP_PROMETHEUS_TXT_COLLECTOR/restic_all.prom.$$ $BACKUP_PROMETHEUS_TXT_COLLECTOR/restic_all.prom
 fi
 
 # clean up
