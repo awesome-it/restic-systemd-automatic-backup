@@ -9,7 +9,8 @@ do
 done
 
 source /etc/restic/config
-if ! restic stats ; then
+
+if restic unlock && ! restic stats ; then
   echo "Initialize restic ..."
   restic init
 fi
